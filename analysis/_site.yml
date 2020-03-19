@@ -1,17 +1,40 @@
-name: "allantois-wt"
+name: allantois-wt
 output_dir: ../docs
 navbar:
-  title: "allantois-wt"
+  title: allantois-wt
   left:
   - text: Home
     href: index.html
   - text: About
     href: about.html
-  - text: License
-    href: license.html
+  - text: Analysis
+    menu:
+    - text: Quality control
+      href: 01-quality-control.html
+    - text: Normalization
+      href: 02-normalization.html
+    - text: Feature selection
+      href: 03-feature-selection.html
+    - text: Dimensionality reduction
+      href: 04-reduced-dimensions.html
+    - text: Clustering
+      href: 05-clustering.html
+    - text: Doublet detection
+      href: 06-doublet-detection.html
+    - text: Cell cycle assignment
+      href: 07-cell-cycle.html
+    - text: Marker gene detection
+      href: 08-marker-detection.html
+    - text: Cell type annotation
+      href: 09-cell-annotation.html
+  right:
+  - icon: fa-github
+    text: Source code
+    href: https://github.com/jma1991/allantois-wt
 output:
   workflowr::wflow_html:
     toc: yes
     toc_float: yes
     theme: cosmo
     highlight: textmate
+    df_print: paged

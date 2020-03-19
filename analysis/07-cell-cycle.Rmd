@@ -1,0 +1,136 @@
+---
+title: "Cell cycle assignment"
+author: "James Ashmore"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+## Setup
+
+Define chunk options:
+
+```{r knitr}
+knitr::opts_chunk$set(
+  autodep    = TRUE,
+  cache      = TRUE,
+  cache.path = "cache/07-cell-cycle.Rmd/",
+  dev        = "png",
+  error      = FALSE,
+  message    = FALSE,
+  warning    = FALSE
+)
+```
+
+Attach required packages:
+
+```{r pacman}
+pacman::p_load(
+  SingleR,
+  scran,
+  scRNAseq,
+  scater,
+  org.Mm.eg.db,
+  here,
+  readr
+)
+```
+
+Import experiment data:
+
+```{r}
+rds <- here("data/06-doublet-detection.rds")
+
+sce <- read_rds(rds)
+
+alt <- altExp(sce, "original", withColData = TRUE)
+```
+
+## Expression
+
+Inspect the relative expression of cyclins across the clusters:
+
+```{r}
+idx <- grep("^Ccn[abde][0-9]$", rowData(alt)$gene_name)
+
+ids <- rownames(alt)[idx]
+
+plotHeatmap(alt, features = sort(ids), order_columns_by = "cluster", cluster_rows = FALSE)
+```
+
+Inspect the relative expession of cell-cycle related genes across the clusters:
+
+```{r}
+sel <- select(org.Mm.eg.db, keys = "GO:0007049", keytype = "GOALL", column = "ENSEMBL")
+
+idx <- rowData(alt)$gene_id %in% sel$ENSEMBL
+
+ids <- rownames(alt)[idx]
+
+plotHeatmap(alt, features = ids, order_columns_by = "cluster", show_rownames = FALSE)
+```
+
+## Reference {.tabset}
+
+Obtain and normalize the Buettner ESC data:
+
+```{r}
+ref <- BuettnerESCData()
+
+ref <- logNormCounts(ref)
+```
+
+Use reference data to assign phase to test data:
+
+```{r}
+ids <- Reduce(intersect, list(rownames(ref), rowData(alt)$gene_id, sel$ENSEMBL))
+
+res <- pairwiseWilcox(logcounts(ref), ref$phase, direction = "up", subset.row = ids)
+
+top <- getTopMarkers(res$statistics, res$pairs)
+
+rownames(alt) <- rowData(alt)$gene_id
+
+fit <- SingleR(test = alt, ref = ref, label = ref$phase, genes = top)
+
+sce$phase <- factor(fit$labels, levels = c("G1", "G2M", "S"))
+```
+
+Inspect the distribution of cell-cycle phases on reduced dimensions:
+
+### PCA
+
+```{r}
+plotPCA(sce, colour_by = "phase", text_by = "cluster")
+```
+
+### TSNE
+
+```{r}
+plotTSNE(sce, colour_by = "phase", text_by = "cluster")
+```
+
+### UMAP
+
+```{r}
+plotUMAP(sce, colour_by = "phase", text_by = "cluster")
+```
+
+## Summary
+
+### Output
+
+Write experiment data:
+
+```{r}
+write_rds(sce, here("data/07-cell-cycle.rds"))
+```
+
+### Session
+
+Print session information:
+
+```{r session}
+devtools::session_info()
+```

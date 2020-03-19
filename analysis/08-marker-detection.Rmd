@@ -1,0 +1,680 @@
+---
+title: "Marker detection"
+author: "James Ashmore"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+## Motivation
+
+In this analysis we will identify differentially expressed genes between clusters in order to create a set of marker genes.
+
+## Setup
+
+Set chunk options:
+
+```{r knitr}
+knitr::opts_chunk$set(
+  autodep    = TRUE,
+  cache      = TRUE,
+  cache.path = "cache/08-marker-detection.Rmd/",
+  dev        = "png",
+  echo       = TRUE,
+  error      = FALSE,
+  message    = FALSE,
+  warning    = FALSE
+)
+```
+
+Load required packages:
+
+```{r}
+pacman::p_load(
+  readr,
+  here,
+  scater,
+  scran
+)
+```
+
+Import datatable options:
+
+```{r, include = FALSE}
+DT::datatable(matrix())
+```
+
+Read experiment data:
+
+```{r}
+rds <- here("data/07-cell-cycle.rds")
+
+sce <- read_rds(rds)
+
+alt <- altExp(sce, "original", withColData = TRUE)
+```
+
+## Welch *t*-test
+
+### Non-specific
+
+Find non-specific candidate marker genes between clusters:
+
+```{r}
+res <- findMarkers(alt, alt$cluster, test.type = "t", pval.type = "any", direction = "up")
+
+sig <- lapply(res, subset, FDR < 0.1)
+
+sig <- Filter(nrow, sig)
+```
+
+#### Table {.tabset}
+
+Create a table of all significant marker genes for each cluster:
+
+```{r, results = "asis", echo = FALSE}
+for (n in names(sig)) {
+
+  dat <- as.data.frame(sig[[n]])
+
+  cat("##### Cluster", n, "\n")
+
+  cat(knitr::knit_print(DT::datatable(dat)))
+
+  cat("\n\n")
+
+}
+```
+
+#### Heatmap {.tabset}
+
+Create a heatmap of expression values for the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+  
+  dat <- sig[[n]]
+  
+  top <- subset(dat, Top <= 10)
+  
+  ids <- rownames(top)
+
+  cat("##### Cluster", n, "\n")
+  
+  plotHeatmap(alt, colour_columns_by = "cluster", features = ids, center = TRUE, symmetric = TRUE, cluster_rows = ifelse(length(ids) >= 2, TRUE, FALSE), show_colnames = FALSE)
+  
+  cat("\n\n")
+  
+}
+```
+
+#### Dimension {.tabset}
+
+Create dimensionality reduction plots coloured by the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- subset(dat, Top <= 5)
+
+  ids <- rownames(top)
+
+  plt <- lapply(ids, function(x) plotUMAP(sce, colour_by = x) + ggtitle(x))
+
+  cat("##### Cluster", n, "\n")
+
+  print(patchwork::wrap_plots(plt))
+
+  cat("\n\n")
+
+}
+```
+
+#### Expression {.tabset}
+
+Plot expression values for the top 5 marker genes against cluster number:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- subset(dat, Top <= 5)
+
+  ids <- rownames(top)
+
+  plt <- plotExpression(alt, features = ids, x = "cluster", colour_by = "cluster", scales = "free")
+
+  cat("##### Cluster", n, "\n")
+
+  print(plt)
+
+  cat("\n\n")
+
+}
+```
+
+### Specific
+
+Find specific candidate marker genes between clusters:
+
+```{r}
+res <- findMarkers(alt, alt$cluster, test.type = "t", pval.type = "all", direction = "up")
+
+sig <- lapply(res, subset, FDR < 0.1)
+
+sig <- Filter(nrow, sig)
+```
+
+#### Table {.tabset}
+
+Create a table of all significant marker genes for each cluster:
+
+```{r, results = "asis", echo = FALSE}
+for (n in names(sig)) {
+
+  dat <- as.data.frame(sig[[n]])
+
+  cat("##### Cluster", n, "\n")
+
+  cat(knitr::knit_print(DT::datatable(dat)))
+
+  cat("\n\n")
+
+}
+```
+
+#### Heatmap {.tabset}
+
+Create a heatmap of expression values for the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+  
+  top <- head(dat, n = 50)
+  
+  ids <- rownames(top)
+
+  cat("##### Cluster", n, "\n")
+
+  plotHeatmap(alt, colour_columns_by = "cluster", features = ids, center = TRUE, symmetric = TRUE, cluster_rows = ifelse(length(ids) >= 2, TRUE, FALSE), show_colnames = FALSE)
+
+  cat("\n\n")
+
+}
+```
+
+#### Dimension {.tabset}
+
+Create dimensionality reduction plots coloured by the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- head(dat, n = 16)
+
+  ids <- rownames(top)
+
+  plt <- lapply(ids, function(x) plotUMAP(sce, colour_by = x) + ggtitle(x))
+
+  cat("##### Cluster", n, "\n")
+
+  print(patchwork::wrap_plots(plt))
+
+  cat("\n\n")
+
+}
+```
+
+#### Expression {.tabset}
+
+Plot expression values for the top 5 marker genes against cluster number:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- head(dat, n = 16)
+
+  ids <- rownames(top)
+
+  plt <- plotExpression(alt, features = ids, x = "cluster", colour_by = "cluster", scales = "free")
+
+  cat("##### Cluster", n, "\n")
+
+  print(plt)
+
+  cat("\n\n")
+
+}
+```
+
+## Wilcoxon rank sum test
+
+### Non-specific
+
+Find non-specific candidate marker genes between clusters:
+
+```{r}
+res <- findMarkers(alt, alt$cluster, test.type = "wilcox", pval.type = "any", direction = "up")
+
+sig <- lapply(res, subset, FDR < 0.1)
+
+sig <- Filter(nrow, sig)
+```
+
+#### Table {.tabset}
+
+Create a table of all significant marker genes for each cluster:
+
+```{r, results = "asis", echo = FALSE}
+for (n in names(sig)) {
+
+  dat <- as.data.frame(sig[[n]])
+
+  cat("##### Cluster", n, "\n")
+
+  cat(knitr::knit_print(DT::datatable(dat)))
+
+  cat("\n\n")
+
+}
+```
+
+#### Heatmap {.tabset}
+
+Create a heatmap of expression values for the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- subset(dat, Top <= 10)
+
+  ids <- rownames(top)
+
+  cat("##### Cluster", n, "\n")
+
+  plotHeatmap(alt, colour_columns_by = "cluster", features = ids, center = TRUE, symmetric = TRUE, cluster_rows = ifelse(length(ids) >= 2, TRUE, FALSE), show_colnames = FALSE)
+
+  cat("\n\n")
+
+}
+```
+
+#### Dimension {.tabset}
+
+Create dimensionality reduction plots coloured by the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- subset(dat, Top <= 5)
+
+  ids <- rownames(top)
+
+  plt <- lapply(ids, function(x) plotUMAP(sce, colour_by = x) + ggtitle(x))
+
+  cat("##### Cluster", n, "\n")
+
+  print(patchwork::wrap_plots(plt))
+
+  cat("\n\n")
+
+}
+```
+
+#### Expression {.tabset}
+
+Plot expression values for the top 5 marker genes against cluster number:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- subset(dat, Top <= 5)
+
+  ids <- rownames(top)
+
+  plt <- plotExpression(alt, features = ids, x = "cluster", colour_by = "cluster", scales = "free")
+
+  cat("##### Cluster", n, "\n")
+
+  print(plt)
+
+  cat("\n\n")
+
+}
+```
+
+### Specific
+
+Find specific candidate marker genes between clusters:
+
+```{r}
+res <- findMarkers(alt, alt$cluster, test.type = "wilcox", pval.type = "all", direction = "up")
+
+sig <- lapply(res, subset, FDR < 0.1)
+
+sig <- Filter(nrow, sig)
+```
+
+#### Table {.tabset}
+
+Create a table of all significant marker genes for each cluster:
+
+```{r, results = "asis", echo = FALSE}
+for (n in names(sig)) {
+
+  dat <- as.data.frame(sig[[n]])
+
+  cat("##### Cluster", n, "\n")
+
+  cat(knitr::knit_print(DT::datatable(dat)))
+
+  cat("\n\n")
+
+}
+```
+
+#### Heatmap {.tabset}
+
+Create a heatmap of expression values for the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+  
+  top <- head(dat, n = 50)
+  
+  ids <- rownames(top)
+
+  cat("##### Cluster", n, "\n")
+
+  plotHeatmap(alt, colour_columns_by = "cluster", features = ids, center = TRUE, symmetric = TRUE, cluster_rows = ifelse(length(ids) >= 2, TRUE, FALSE), show_colnames = FALSE)
+
+  cat("\n\n")
+
+}
+```
+
+#### Dimension {.tabset}
+
+Create dimensionality reduction plots coloured by the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+  
+  top <- head(dat, n = 16)
+  
+  ids <- rownames(top)
+
+  plt <- lapply(ids, function(x) plotUMAP(sce, colour_by = x) + ggtitle(x))
+
+  cat("##### Cluster", n, "\n")
+
+  print(patchwork::wrap_plots(plt))
+
+  cat("\n\n")
+
+}
+```
+
+#### Expression {.tabset}
+
+Plot expression values for the top 5 marker genes against cluster number:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+  
+  top <- head(dat, n = 16)
+  
+  ids <- rownames(top)
+
+  plt <- plotExpression(alt, features = ids, x = "cluster", colour_by = "cluster", scales = "free")
+
+  cat("##### Cluster", n, "\n")
+
+  print(plt)
+
+  cat("\n\n")
+
+}
+```
+
+## Binomial test
+
+### Non-specific
+
+Find non-specific candidate marker genes between clusters:
+
+```{r}
+res <- findMarkers(alt, alt$cluster, test.type = "binom", pval.type = "any", direction = "up")
+
+sig <- lapply(res, subset, FDR < 0.1)
+
+sig <- Filter(nrow, sig)
+```
+
+#### Table {.tabset}
+
+Create a table of all significant marker genes for each cluster:
+
+```{r, results = "asis", echo = FALSE}
+for (n in names(sig)) {
+
+  dat <- as.data.frame(sig[[n]])
+
+  cat("##### Cluster", n, "\n")
+
+  cat(knitr::knit_print(DT::datatable(dat)))
+
+  cat("\n\n")
+
+}
+```
+
+#### Heatmap {.tabset}
+
+Create a heatmap of expression values for the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- subset(dat, Top <= 10)
+
+  ids <- rownames(top)
+
+  cat("##### Cluster", n, "\n")
+
+  plotHeatmap(alt, colour_columns_by = "cluster", features = ids, center = TRUE, symmetric = TRUE, cluster_rows = ifelse(length(ids) >= 2, TRUE, FALSE), show_colnames = FALSE)
+
+  cat("\n\n")
+
+}
+```
+
+#### Dimension {.tabset}
+
+Create dimensionality reduction plots coloured by the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- subset(dat, Top <= 5)
+
+  ids <- rownames(top)
+
+  plt <- lapply(ids, function(x) plotUMAP(sce, colour_by = x) + ggtitle(x))
+
+  cat("##### Cluster", n, "\n")
+
+  print(patchwork::wrap_plots(plt))
+
+  cat("\n\n")
+
+}
+```
+
+#### Expression {.tabset}
+
+Plot expression values for the top 5 marker genes against cluster number:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+
+  top <- subset(dat, Top <= 5)
+
+  ids <- rownames(top)
+
+  plt <- plotExpression(alt, features = ids, x = "cluster", colour_by = "cluster", scales = "free")
+
+  cat("##### Cluster", n, "\n")
+
+  print(plt)
+
+  cat("\n\n")
+
+}
+```
+
+### Specific
+
+Find specific candidate marker genes between clusters:
+
+```{r}
+res <- findMarkers(alt, alt$cluster, test.type = "binom", pval.type = "all", direction = "up")
+
+sig <- lapply(res, subset, FDR < 0.1)
+
+sig <- Filter(nrow, sig)
+```
+
+#### Table {.tabset}
+
+Create a table of all significant marker genes for each cluster:
+
+```{r, results = "asis", echo = FALSE}
+for (n in names(sig)) {
+
+  dat <- as.data.frame(sig[[n]])
+
+  cat("##### Cluster", n, "\n")
+
+  cat(knitr::knit_print(DT::datatable(dat)))
+
+  cat("\n\n")
+
+}
+```
+
+#### Heatmap {.tabset}
+
+Create a heatmap of expression values for the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+  
+  top <- head(dat, n = 50)
+  
+  ids <- rownames(top)
+
+  cat("##### Cluster", n, "\n")
+
+  plotHeatmap(alt, colour_columns_by = "cluster", features = ids, center = TRUE, symmetric = TRUE, cluster_rows = ifelse(length(ids) >= 2, TRUE, FALSE), show_colnames = FALSE)
+
+  cat("\n\n")
+
+}
+```
+
+#### Dimension {.tabset}
+
+Create dimensionality reduction plots coloured by the top 5 marker genes:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+  
+  top <- head(dat, n = 16)
+  
+  ids <- rownames(top)
+
+  plt <- lapply(ids, function(x) plotUMAP(alt, colour_by = x) + ggtitle(x))
+
+  cat("##### Cluster", n, "\n")
+
+  print(patchwork::wrap_plots(plt))
+
+  cat("\n\n")
+
+}
+```
+
+#### Expression {.tabset}
+
+Plot expression values for the top 5 marker genes against cluster number:
+
+```{r, fig.height = 8, fig.width = 10, results = "asis"}
+for (n in names(sig)) {
+
+  dat <- sig[[n]]
+  
+  top <- head(dat, n = 16)
+  
+  ids <- rownames(top)
+
+  plt <- plotExpression(alt, features = ids, x = "cluster", colour_by = "cluster", scales = "free")
+
+  cat("##### Cluster", n, "\n")
+
+  print(plt)
+
+  cat("\n\n")
+
+}
+```
+
+## Summary
+
+### Output
+
+Write experiment data:
+
+```{r}
+readr::write_rds(sce, here("data/08-marker-detection.rds"))
+```
+
+### Session
+
+Print session information:
+
+```{r}
+devtools::session_info()
+```
